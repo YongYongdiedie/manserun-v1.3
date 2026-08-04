@@ -748,7 +748,7 @@ async function recordVisit(){
   const updates = {};
   let needUpdate = false;
   if(!everVisited){ updates.total = fb.increment(1); needUpdate = true; }
-  if(lastVisitDate !== todayStr){ updates['daily.'+todayStr] = fb.increment(1); needUpdate = true; }
+  if(lastVisitDate !== todayStr){ updates.daily = { [todayStr]: fb.increment(1) }; needUpdate = true; }
   if(!needUpdate) return;
   try{
     await fb.setDoc(fb.doc(db,'stats','visits'), updates, { merge:true });
