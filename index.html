@@ -1018,11 +1018,11 @@ function startFirebaseApp(){
         date: getHanoiDateString(), today: todayCount, total: totalCount
       }));
     }catch(e){ /* 캐시 저장 실패는 최신 수치 표시에 영향 없음 */ }
-    if(!snap.metadata.fromCache){
-      visitReadReady = true;
-      setLoadingState(50, t('loadingRead'));
-      updateDataLoading();
-    }
+    // 첫 스냅샷(캐시 포함)도 방문자 수 읽기 성공으로 처리한다.
+    // 서버와의 최신 동기화는 실시간 리스너가 계속 수행한다.
+    visitReadReady = true;
+    setLoadingState(50, t('loadingRead'));
+    updateDataLoading();
   }, (err)=>{ console.error('visits onSnapshot 오류:', err); });
   recordVisit();
 }
