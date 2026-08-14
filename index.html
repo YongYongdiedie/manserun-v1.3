@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="양심만세런">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700;900&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Serif+KR:wght@500;700;900&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
@@ -65,14 +65,22 @@
   .celebrate-overlay.show{ display:flex; }
   #confetti-canvas{ position:fixed; inset:0; z-index:401; pointer-events:none; }
   .celebrate-box{
-    position:relative; z-index:402; cursor:pointer;
-    background:var(--card); border-radius:22px; padding:36px 28px;
-    text-align:center; box-shadow:0 30px 60px rgba(0,0,0,.45);
-    max-width:320px;
+    position:relative; z-index:402; cursor:pointer; overflow:hidden;
+    background:#FFFDF8; border:1px solid rgba(28,51,88,.14);
+    border-radius:22px; padding:42px 28px 38px; text-align:center;
+    box-shadow:0 30px 60px rgba(0,0,0,.45); max-width:320px;
+  }
+  .celebrate-box::before{
+    content:'815'; position:absolute; top:12px; left:50%;
+    transform:translateX(-50%); font-family:'Noto Serif KR',serif;
+    font-size:92px; font-weight:900; line-height:1;
+    color:rgba(28,51,88,.075); pointer-events:none;
   }
   .celebrate-text{
-    font-family:'Noto Serif KR',serif; font-size:23px; font-weight:900;
-    color:var(--seal-deep); margin:0; line-height:1.4;
+    position:relative; z-index:1; font-family:'Gowun Batang','Noto Serif KR',serif;
+    font-size:25px; font-weight:700; letter-spacing:-.055em;
+    color:var(--indigo-deep); margin:0; line-height:1.5;
+    text-shadow:0 1px 0 #fff;
   }
   .celebrate-close, .video-close{
     position:fixed; top:16px; right:16px; z-index:410;
