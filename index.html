@@ -467,7 +467,7 @@
   <div class="video-box">
     <button class="video-sound-toggle" id="video-sound-toggle" type="button" onclick="toggleVideoSound()">🔇 소리 켜기</button>
     <iframe id="celebrate-video" src="" title="celebration video" frameborder="0"
-      allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      allow="autoplay; encrypted-media; picture-in-picture" onload="handleVideoLoad()" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -1376,6 +1376,12 @@ function openVideoModal(){
   updateVideoSoundButton();
   document.getElementById('celebrate-video').src = CELEBRATE_VIDEO_URL;
   document.getElementById('video-overlay').classList.add('show');
+}
+function handleVideoLoad(){
+  if(_videoSoundOn){
+    sendVideoCommand('unMute');
+    sendVideoCommand('playVideo');
+  }
 }
 function toggleVideoSound(){
   if(_videoSoundOn){
