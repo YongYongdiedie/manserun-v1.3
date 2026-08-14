@@ -58,14 +58,14 @@
   html,body{margin:0;padding:0; touch-action:pan-y; overscroll-behavior-x:none;}
 
   .celebrate-overlay{
-    position:fixed; inset:0; z-index:400; display:none;
+    position:fixed; inset:0; z-index:700; display:none;
     align-items:center; justify-content:center;
     background:rgba(18,15,10,.6);
   }
   .celebrate-overlay.show{ display:flex; }
-  #confetti-canvas{ position:fixed; inset:0; z-index:401; pointer-events:none; }
+  #confetti-canvas{ position:fixed; inset:0; z-index:701; pointer-events:none; }
   .celebrate-box{
-    position:relative; z-index:402; cursor:pointer; overflow:hidden;
+    position:relative; z-index:702; cursor:pointer; overflow:hidden;
     background:#FFFDF8; border:1px solid rgba(28,51,88,.14);
     border-radius:22px; padding:42px 28px 38px; text-align:center;
     box-shadow:0 30px 60px rgba(0,0,0,.45); max-width:320px;
@@ -83,12 +83,12 @@
     text-shadow:0 1px 0 #fff;
   }
   .celebrate-close, .video-close{
-    position:fixed; top:16px; right:16px; z-index:410;
+    position:fixed; top:16px; right:16px; z-index:730;
     width:38px; height:38px; border-radius:50%; border:none;
     background:rgba(0,0,0,.55); color:#fff; font-size:17px; cursor:pointer;
   }
   .video-overlay{
-    position:fixed; inset:0; z-index:400; display:none;
+    position:fixed; inset:0; z-index:720; display:none;
     align-items:center; justify-content:center;
     background:rgba(0,0,0,.88); padding:20px;
   }
@@ -1504,6 +1504,14 @@ function stopConfetti(){
   const canvas = document.getElementById('confetti-canvas');
   if(canvas){ const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
 }
+
+// 815km 목표는 이미 달성됐으므로 Firebase 조회를 기다리지 않고 앱 진입 즉시 축하 팝업을 연다.
+function triggerCelebrationOnAppEntry(){
+  if(_celebrationShownThisLoad) return;
+  _celebrationShownThisLoad = true;
+  showCelebration();
+}
+window.setTimeout(triggerCelebrationOnAppEntry, 0);
 
 function isKakaoInApp(){ return /KAKAOTALK/i.test(navigator.userAgent); }
 function isAndroidUA(){ return /Android/i.test(navigator.userAgent); }
