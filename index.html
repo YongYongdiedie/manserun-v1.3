@@ -110,15 +110,27 @@
   }
   .data-loading-overlay.done{ display:none; }
   .data-loading-box{
-    display:flex; align-items:center; gap:11px; padding:17px 20px;
-    border-radius:14px; background:var(--card); color:var(--indigo-deep);
-    font-size:14px; font-weight:700; box-shadow:0 18px 42px rgba(0,0,0,.32);
+    width:min(280px, calc(100vw - 48px)); padding:24px 20px 22px;
+    border-radius:18px; background:var(--card); color:var(--indigo-deep);
+    text-align:center; font-size:14px; font-weight:700;
+    box-shadow:0 18px 42px rgba(0,0,0,.32);
   }
-  .data-loading-spinner{
-    width:18px; height:18px; border:3px solid var(--paper-deep);
-    border-top-color:var(--seal); border-radius:50%; animation:dataSpin .8s linear infinite;
+  .data-loading-title{ margin:0; line-height:1.45; }
+  .data-loading-progress{
+    --loading-progress:0; position:relative; width:78px; height:78px;
+    margin:16px auto 13px; border-radius:50%;
+    background:conic-gradient(var(--seal) calc(var(--loading-progress) * 1%), var(--paper-deep) 0);
+    transition:background .35s ease;
   }
-  @keyframes dataSpin{ to{ transform:rotate(360deg); } }
+  .data-loading-progress::before{
+    content:''; position:absolute; inset:7px; border-radius:50%; background:var(--card);
+  }
+  .data-loading-percent{
+    position:absolute; inset:0; z-index:1; display:flex; align-items:center;
+    justify-content:center; font-size:17px; font-weight:900; color:var(--seal-deep);
+  }
+  .data-loading-stage{ margin:0; color:var(--ink); font-size:13px; }
+  .data-loading-elapsed{ margin:7px 0 0; color:var(--ink-soft); font-size:12px; font-weight:600; }
 
   .kakao-banner{
     display:none; align-items:center; gap:8px;
@@ -452,7 +464,12 @@
 </head>
 <body>
 <div class="data-loading-overlay" id="data-loading-overlay" role="status" aria-live="polite">
-  <div class="data-loading-box"><span class="data-loading-spinner" aria-hidden="true"></span><span data-i18n="dataLoading">데이터를 불러오는 중입니다</span></div>
+  <div class="data-loading-box">
+    <p class="data-loading-title" data-i18n="dataLoading">데이터를 불러오는 중입니다</p>
+    <div class="data-loading-progress" id="data-loading-progress" aria-hidden="true"><span class="data-loading-percent" id="data-loading-percent">0%</span></div>
+    <p class="data-loading-stage" id="data-loading-stage">Firebase 연결 시작</p>
+    <p class="data-loading-elapsed" id="data-loading-elapsed">경과 시간 0.0초</p>
+  </div>
 </div>
 <div class="celebrate-overlay" id="celebrate-overlay">
   <canvas id="confetti-canvas"></canvas>
@@ -712,6 +729,9 @@ const I18N = {
     statToday:"오늘", statTotal:"누적",
     celebrateText:"815km 달성을 축하합니다!!",
     dataLoading:"데이터를 불러오는 중입니다",
+    loadingStart:"Firebase 연결 시작", loadingRead:"방문자 수 읽기 완료",
+    loadingWrite:"방문자 수 쓰기 확인 완료", loadingDone:"준비 완료",
+    loadingElapsed:"경과 시간 {seconds}초",
     videoSoundOn:"🔇 소리 켜기", videoSoundOff:"🔊 소리 끄기",
     kakaoBannerText:"카카오톡 안에서는 입력이 안 될 수 있어요. 눌러서 다른 브라우저로 열어주세요.", kakaoBannerBtn:"다른 브라우저로 열기",
     tileInstallTitle:"홈 화면에 바로가기 만들기", tileInstallDesc:"앱처럼 바로 열 수 있어요",
@@ -763,6 +783,9 @@ const I18N = {
     statToday:"Today", statTotal:"Total",
     celebrateText:"Congratulations on reaching 815km!!",
     dataLoading:"Loading data…",
+    loadingStart:"Starting Firebase connection", loadingRead:"Visitor count loaded",
+    loadingWrite:"Visitor count write confirmed", loadingDone:"Ready",
+    loadingElapsed:"Elapsed {seconds}s",
     videoSoundOn:"🔇 Turn sound on", videoSoundOff:"🔊 Turn sound off",
     kakaoBannerText:"Typing may not work inside KakaoTalk. Tap to open in your browser.", kakaoBannerBtn:"Open in Browser",
     tileInstallTitle:"Add to Home Screen", tileInstallDesc:"Open it like an app",
@@ -814,6 +837,9 @@ const I18N = {
     statToday:"Hôm nay", statTotal:"Tổng",
     celebrateText:"Chúc mừng đã đạt 815km!!",
     dataLoading:"Đang tải dữ liệu…",
+    loadingStart:"Đang kết nối Firebase", loadingRead:"Đã tải số khách truy cập",
+    loadingWrite:"Đã xác nhận lưu số khách", loadingDone:"Sẵn sàng",
+    loadingElapsed:"Đã trôi qua {seconds} giây",
     videoSoundOn:"🔇 Bật âm thanh", videoSoundOff:"🔊 Tắt âm thanh",
     kakaoBannerText:"Có thể không gõ được trong KakaoTalk. Nhấn để mở bằng trình duyệt khác.", kakaoBannerBtn:"Mở bằng trình duyệt",
     tileInstallTitle:"Thêm vào màn hình chính", tileInstallDesc:"Mở như một ứng dụng",
@@ -899,12 +925,33 @@ const TODAY_HANOI = getHanoiDateString();
 const VISIT_STATS_CACHE_KEY = 'ymr_visit_stats_cache_v1';
 let visitReadReady = false;
 let visitWriteReady = false;
+let loadingFinishScheduled = false;
+const loadingStartedAt = performance.now();
+let loadingElapsedTimer = null;
 
+function updateLoadingElapsed(){
+  const elapsed = ((performance.now() - loadingStartedAt) / 1000).toFixed(1);
+  document.getElementById('data-loading-elapsed').textContent = t('loadingElapsed',{seconds:elapsed});
+}
+function setLoadingState(progress, stage){
+  const safeProgress = Math.max(0, Math.min(100, progress));
+  document.getElementById('data-loading-progress').style.setProperty('--loading-progress', safeProgress);
+  document.getElementById('data-loading-percent').textContent = safeProgress + '%';
+  document.getElementById('data-loading-stage').textContent = stage;
+}
 function updateDataLoading(){
-  if(visitReadReady && visitWriteReady){
-    document.getElementById('data-loading-overlay').classList.add('done');
+  if(visitReadReady && visitWriteReady && !loadingFinishScheduled){
+    loadingFinishScheduled = true;
+    setTimeout(()=>{
+      setLoadingState(100, t('loadingDone'));
+      if(loadingElapsedTimer) clearInterval(loadingElapsedTimer);
+      setTimeout(()=>document.getElementById('data-loading-overlay').classList.add('done'), 180);
+    }, 420);
   }
 }
+setLoadingState(0, t('loadingStart'));
+updateLoadingElapsed();
+loadingElapsedTimer = setInterval(updateLoadingElapsed, 100);
 
 function renderVisitStats(todayCount, totalCount){
   document.getElementById('stat-today').textContent = todayCount;
@@ -973,6 +1020,7 @@ function startFirebaseApp(){
     }catch(e){ /* 캐시 저장 실패는 최신 수치 표시에 영향 없음 */ }
     if(!snap.metadata.fromCache){
       visitReadReady = true;
+      setLoadingState(50, t('loadingRead'));
       updateDataLoading();
     }
   }, (err)=>{ console.error('visits onSnapshot 오류:', err); });
@@ -983,6 +1031,7 @@ async function recordVisit(){
   const lastVisitDate = localStorage.getItem('ymr_visited_date');
   if(lastVisitDate === todayStr){
     visitWriteReady = true; // 오늘 이 기기에서 이미 성공적으로 기록한 방문
+    setLoadingState(90, t('loadingWrite'));
     updateDataLoading();
     return;
   }
@@ -993,6 +1042,7 @@ async function recordVisit(){
     }, { merge:true });
     localStorage.setItem('ymr_visited_date', todayStr);
     visitWriteReady = true;
+    setLoadingState(90, t('loadingWrite'));
     updateDataLoading();
   } catch(e){ console.error('방문자 카운트 오류:', e); }
 }
