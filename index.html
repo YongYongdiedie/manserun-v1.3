@@ -459,9 +459,9 @@
       </div>
       <p data-i18n="brandSubtitle">서 있는 자리는 달라도, 한마음으로 815km</p>
       <div class="brand-toolbar">
-        <div class="visit-stats">
-          <span class="stat-chip"><b data-i18n="statToday">Today</b><span id="stat-today">0</span></span>
-          <span class="stat-chip"><b data-i18n="statTotal">Total</b><span id="stat-total">0</span></span>
+        <div class="visit-stats" aria-live="polite">
+          <span class="stat-chip"><b data-i18n="statToday">Today</b><span id="stat-today">—</span></span>
+          <span class="stat-chip"><b data-i18n="statTotal">Total</b><span id="stat-total">—</span></span>
         </div>
         <div class="lang-switch" id="lang-switch">
           <button onclick="applyLang('ko')" data-lang-btn="ko">KO</button>
@@ -861,6 +861,21 @@ function getHanoiDateString(){
   return new Date(hanoiMs).toISOString().slice(0,10); // "YYYY-MM-DD" (하노이 기준)
 }
 const TODAY_HANOI = getHanoiDateString();
+const VISIT_STATS_CACHE_KEY = 'ymr_visit_stats_cache_v1';
+
+function renderVisitStats(todayCount, totalCount){
+  document.getElementById('stat-today').textContent = todayCount;
+  document.getElementById('stat-total').textContent = totalCount;
+}
+function renderCachedVisitStats(){
+  try{
+    const cached = JSON.parse(localStorage.getItem(VISIT_STATS_CACHE_KEY));
+    if(cached && cached.date === TODAY_HANOI){
+      renderVisitStats(cached.today, cached.total);
+    }
+  }catch(e){ /* 캐시를 읽지 못하면 로딩 표시를 유지 */ }
+}
+renderCachedVisitStats();
 
 function startFirebaseApp(){
   db = window.db; auth = window.auth; fb = window.fbFns;
@@ -906,8 +921,13 @@ function startFirebaseApp(){
   fb.onSnapshot(fb.doc(db,'stats','visits'), (snap)=>{
     const data = snap.exists() ? snap.data() : { total:0, daily:{} };
     const todayCount = (data.daily && data.daily[getHanoiDateString()]) || 0;
-    document.getElementById('stat-today').textContent = todayCount;
-    document.getElementById('stat-total').textContent = data.total || 0;
+    const totalCount = data.total || 0;
+    renderVisitStats(todayCount, totalCount);
+    try{
+      localStorage.setItem(VISIT_STATS_CACHE_KEY, JSON.stringify({
+        date: getHanoiDateString(), today: todayCount, total: totalCount
+      }));
+    }catch(e){ /* 캐시 저장 실패는 최신 수치 표시에 영향 없음 */ }
   }, (err)=>{ console.error('visits onSnapshot 오류:', err); });
   recordVisit();
 }
