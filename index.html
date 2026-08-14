@@ -98,6 +98,27 @@
     background:#000; border-radius:12px; overflow:hidden;
   }
   .video-box iframe{ position:absolute; inset:0; width:100%; height:100%; border:none; }
+  .video-sound-toggle{
+    position:absolute; top:12px; left:12px; z-index:2; border:none;
+    border-radius:999px; padding:9px 12px; background:rgba(18,35,61,.9);
+    color:#fff; font-size:13px; font-weight:700; cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,.25);
+  }
+  .data-loading-overlay{
+    position:fixed; inset:0; z-index:600; display:flex; align-items:center;
+    justify-content:center; background:rgba(18,15,10,.72);
+  }
+  .data-loading-overlay.done{ display:none; }
+  .data-loading-box{
+    display:flex; align-items:center; gap:11px; padding:17px 20px;
+    border-radius:14px; background:var(--card); color:var(--indigo-deep);
+    font-size:14px; font-weight:700; box-shadow:0 18px 42px rgba(0,0,0,.32);
+  }
+  .data-loading-spinner{
+    width:18px; height:18px; border:3px solid var(--paper-deep);
+    border-top-color:var(--seal); border-radius:50%; animation:dataSpin .8s linear infinite;
+  }
+  @keyframes dataSpin{ to{ transform:rotate(360deg); } }
 
   .kakao-banner{
     display:none; align-items:center; gap:8px;
@@ -430,6 +451,9 @@
 </style>
 </head>
 <body>
+<div class="data-loading-overlay" id="data-loading-overlay" role="status" aria-live="polite">
+  <div class="data-loading-box"><span class="data-loading-spinner" aria-hidden="true"></span><span data-i18n="dataLoading">데이터를 불러오는 중입니다</span></div>
+</div>
 <div class="celebrate-overlay" id="celebrate-overlay">
   <canvas id="confetti-canvas"></canvas>
   <button class="celebrate-close" onclick="closeCelebration()" aria-label="close">✕</button>
@@ -441,6 +465,7 @@
 <div class="video-overlay" id="video-overlay">
   <button class="video-close" onclick="closeVideoModal()" aria-label="close">✕</button>
   <div class="video-box">
+    <button class="video-sound-toggle" id="video-sound-toggle" type="button" onclick="toggleVideoSound()">🔇 소리 켜기</button>
     <iframe id="celebrate-video" src="" title="celebration video" frameborder="0"
       allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
   </div>
@@ -686,6 +711,8 @@ const I18N = {
     eyebrow:"광복 81주년 · 8.5 — 8.15", brandTitle:"양심만세런", brandSubtitle:"서 있는 자리는 달라도, 한마음으로 815km",
     statToday:"오늘", statTotal:"누적",
     celebrateText:"815km 달성을 축하합니다!!",
+    dataLoading:"데이터를 불러오는 중입니다",
+    videoSoundOn:"🔇 소리 켜기", videoSoundOff:"🔊 소리 끄기",
     kakaoBannerText:"카카오톡 안에서는 입력이 안 될 수 있어요. 눌러서 다른 브라우저로 열어주세요.", kakaoBannerBtn:"다른 브라우저로 열기",
     tileInstallTitle:"홈 화면에 바로가기 만들기", tileInstallDesc:"앱처럼 바로 열 수 있어요",
     installAndroidTitle:"📱 안드로이드 (크롬 · 삼성인터넷)", btnInstallAuto:"홈 화면에 추가하기",
@@ -735,6 +762,8 @@ const I18N = {
     eyebrow:"81st Liberation Day · Aug 5 — 15", brandTitle:"Conscience Manse Run", brandSubtitle:"Different places, one heart — together to 815km",
     statToday:"Today", statTotal:"Total",
     celebrateText:"Congratulations on reaching 815km!!",
+    dataLoading:"Loading data…",
+    videoSoundOn:"🔇 Turn sound on", videoSoundOff:"🔊 Turn sound off",
     kakaoBannerText:"Typing may not work inside KakaoTalk. Tap to open in your browser.", kakaoBannerBtn:"Open in Browser",
     tileInstallTitle:"Add to Home Screen", tileInstallDesc:"Open it like an app",
     installAndroidTitle:"📱 Android (Chrome · Samsung Internet)", btnInstallAuto:"Add to Home Screen",
@@ -784,6 +813,8 @@ const I18N = {
     eyebrow:"81 năm Quốc khánh · 5 — 15/8", brandTitle:"Yangsim Manse Run", brandSubtitle:"Mỗi người một nơi, chung một tấm lòng — cùng chạy đủ 815km",
     statToday:"Hôm nay", statTotal:"Tổng",
     celebrateText:"Chúc mừng đã đạt 815km!!",
+    dataLoading:"Đang tải dữ liệu…",
+    videoSoundOn:"🔇 Bật âm thanh", videoSoundOff:"🔊 Tắt âm thanh",
     kakaoBannerText:"Có thể không gõ được trong KakaoTalk. Nhấn để mở bằng trình duyệt khác.", kakaoBannerBtn:"Mở bằng trình duyệt",
     tileInstallTitle:"Thêm vào màn hình chính", tileInstallDesc:"Mở như một ứng dụng",
     installAndroidTitle:"📱 Android (Chrome · Samsung Internet)", btnInstallAuto:"Thêm vào màn hình chính",
@@ -866,6 +897,14 @@ function getHanoiDateString(){
 }
 const TODAY_HANOI = getHanoiDateString();
 const VISIT_STATS_CACHE_KEY = 'ymr_visit_stats_cache_v1';
+let visitReadReady = false;
+let visitWriteReady = false;
+
+function updateDataLoading(){
+  if(visitReadReady && visitWriteReady){
+    document.getElementById('data-loading-overlay').classList.add('done');
+  }
+}
 
 function renderVisitStats(todayCount, totalCount){
   document.getElementById('stat-today').textContent = todayCount;
@@ -922,7 +961,7 @@ function startFirebaseApp(){
   });
 
   // 5) 방문자 수 (오늘/누적) — 실시간 표시 + 이 기기 최초 방문 시에만 카운트 증가
-  fb.onSnapshot(fb.doc(db,'stats','visits'), (snap)=>{
+  fb.onSnapshot(fb.doc(db,'stats','visits'), { includeMetadataChanges:true }, (snap)=>{
     const data = snap.exists() ? snap.data() : { total:0, daily:{} };
     const todayCount = (data.daily && data.daily[getHanoiDateString()]) || 0;
     const totalCount = data.total || 0;
@@ -932,19 +971,29 @@ function startFirebaseApp(){
         date: getHanoiDateString(), today: todayCount, total: totalCount
       }));
     }catch(e){ /* 캐시 저장 실패는 최신 수치 표시에 영향 없음 */ }
+    if(!snap.metadata.fromCache){
+      visitReadReady = true;
+      updateDataLoading();
+    }
   }, (err)=>{ console.error('visits onSnapshot 오류:', err); });
   recordVisit();
 }
 async function recordVisit(){
   const todayStr = getHanoiDateString();
   const lastVisitDate = localStorage.getItem('ymr_visited_date');
-  if(lastVisitDate === todayStr) return; // 오늘 이미 방문 카운트를 했다면 다시 세지 않음
+  if(lastVisitDate === todayStr){
+    visitWriteReady = true; // 오늘 이 기기에서 이미 성공적으로 기록한 방문
+    updateDataLoading();
+    return;
+  }
   try{
     await fb.setDoc(fb.doc(db,'stats','visits'), {
       total: fb.increment(1),
       daily: { [todayStr]: fb.increment(1) }
     }, { merge:true });
     localStorage.setItem('ymr_visited_date', todayStr);
+    visitWriteReady = true;
+    updateDataLoading();
   } catch(e){ console.error('방문자 카운트 오류:', e); }
 }
 if(window.db){ startFirebaseApp(); }
@@ -1290,7 +1339,8 @@ applyLang(currentLang);
 
 /* ---------- 카카오톡 인앱 브라우저(안드로이드) 감지 - 입력 버그 안내 ---------- */
 /* ---------- 815km 달성 축하 (꽃가루 + 팝업 + 유튜브 영상) ---------- */
-const CELEBRATE_VIDEO_URL = 'https://www.youtube.com/embed/7rnE1oO2ImY?autoplay=1&mute=1';
+const CELEBRATE_VIDEO_URL = 'https://www.youtube.com/embed/7rnE1oO2ImY?autoplay=1&mute=1&enablejsapi=1&playsinline=1&origin=https%3A%2F%2Fyongyongdiedie.github.io';
+let _videoSoundOn = false;
 let _celebrationShownThisLoad = false;
 let _confettiRAF = null;
 
@@ -1311,13 +1361,36 @@ function closeCelebration(){
   stopConfetti();
   openVideoModal();
 }
+function updateVideoSoundButton(){
+  const btn = document.getElementById('video-sound-toggle');
+  if(btn) btn.textContent = _videoSoundOn ? t('videoSoundOff') : t('videoSoundOn');
+}
+function sendVideoCommand(func){
+  const video = document.getElementById('celebrate-video');
+  if(video && video.contentWindow){
+    video.contentWindow.postMessage(JSON.stringify({ event:'command', func, args:[] }), 'https://www.youtube.com');
+  }
+}
 function openVideoModal(){
+  _videoSoundOn = false;
+  updateVideoSoundButton();
   document.getElementById('celebrate-video').src = CELEBRATE_VIDEO_URL;
   document.getElementById('video-overlay').classList.add('show');
+}
+function toggleVideoSound(){
+  if(_videoSoundOn){
+    sendVideoCommand('mute');
+  }else{
+    sendVideoCommand('unMute');
+    sendVideoCommand('playVideo');
+  }
+  _videoSoundOn = !_videoSoundOn;
+  updateVideoSoundButton();
 }
 function closeVideoModal(){
   document.getElementById('video-overlay').classList.remove('show');
   document.getElementById('celebrate-video').src = ''; // 재생 정지
+  _videoSoundOn = false;
 }
 function startConfetti(){
   const canvas = document.getElementById('confetti-canvas');
