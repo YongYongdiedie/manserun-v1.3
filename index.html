@@ -484,7 +484,7 @@
   <div class="video-box">
     <button class="video-sound-toggle" id="video-sound-toggle" type="button" onclick="toggleVideoSound()">🔇 소리 켜기</button>
     <iframe id="celebrate-video" src="" title="celebration video" frameborder="0"
-      allow="autoplay; encrypted-media; picture-in-picture" onload="handleVideoLoad()" allowfullscreen></iframe>
+      allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -731,6 +731,7 @@ const I18N = {
     dataLoading:"데이터를 불러오는 중입니다",
     loadingStart:"Firebase 연결 시작", loadingRead:"방문자 수 읽기 완료",
     loadingWrite:"방문자 수 쓰기 확인 완료", loadingDone:"준비 완료",
+    loadingBackground:"방문자 수 동기화는 백그라운드에서 계속됩니다",
     loadingElapsed:"경과 시간 {seconds}초",
     videoSoundOn:"🔇 소리 켜기", videoSoundOff:"🔊 소리 끄기",
     kakaoBannerText:"카카오톡 안에서는 입력이 안 될 수 있어요. 눌러서 다른 브라우저로 열어주세요.", kakaoBannerBtn:"다른 브라우저로 열기",
@@ -785,6 +786,7 @@ const I18N = {
     dataLoading:"Loading data…",
     loadingStart:"Starting Firebase connection", loadingRead:"Visitor count loaded",
     loadingWrite:"Visitor count write confirmed", loadingDone:"Ready",
+    loadingBackground:"Visitor-count sync will continue in the background",
     loadingElapsed:"Elapsed {seconds}s",
     videoSoundOn:"🔇 Turn sound on", videoSoundOff:"🔊 Turn sound off",
     kakaoBannerText:"Typing may not work inside KakaoTalk. Tap to open in your browser.", kakaoBannerBtn:"Open in Browser",
@@ -839,6 +841,7 @@ const I18N = {
     dataLoading:"Đang tải dữ liệu…",
     loadingStart:"Đang kết nối Firebase", loadingRead:"Đã tải số khách truy cập",
     loadingWrite:"Đã xác nhận lưu số khách", loadingDone:"Sẵn sàng",
+    loadingBackground:"Đồng bộ số khách sẽ tiếp tục trong nền",
     loadingElapsed:"Đã trôi qua {seconds} giây",
     videoSoundOn:"🔇 Bật âm thanh", videoSoundOff:"🔊 Tắt âm thanh",
     kakaoBannerText:"Có thể không gõ được trong KakaoTalk. Nhấn để mở bằng trình duyệt khác.", kakaoBannerBtn:"Mở bằng trình duyệt",
@@ -926,6 +929,7 @@ const VISIT_STATS_CACHE_KEY = 'ymr_visit_stats_cache_v1';
 let visitReadReady = false;
 let visitWriteReady = false;
 let loadingFinishScheduled = false;
+let loadingTimeoutId = null;
 const loadingStartedAt = performance.now();
 let loadingElapsedTimer = null;
 
@@ -939,19 +943,26 @@ function setLoadingState(progress, stage){
   document.getElementById('data-loading-percent').textContent = safeProgress + '%';
   document.getElementById('data-loading-stage').textContent = stage;
 }
+function finishDataLoading(stage){
+  if(loadingFinishScheduled) return;
+  loadingFinishScheduled = true;
+  if(loadingTimeoutId) clearTimeout(loadingTimeoutId);
+  setLoadingState(100, stage || t('loadingDone'));
+  if(loadingElapsedTimer) clearInterval(loadingElapsedTimer);
+  setTimeout(()=>document.getElementById('data-loading-overlay').classList.add('done'), 180);
+}
 function updateDataLoading(){
-  if(visitReadReady && visitWriteReady && !loadingFinishScheduled){
-    loadingFinishScheduled = true;
-    setTimeout(()=>{
-      setLoadingState(100, t('loadingDone'));
-      if(loadingElapsedTimer) clearInterval(loadingElapsedTimer);
-      setTimeout(()=>document.getElementById('data-loading-overlay').classList.add('done'), 180);
-    }, 420);
-  }
+  if(visitReadReady && visitWriteReady) finishDataLoading(t('loadingDone'));
+}
+function releaseDataLoadingFallback(reason){
+  console.warn('방문자 수 동기화 지연:', reason);
+  finishDataLoading(t('loadingBackground'));
 }
 setLoadingState(0, t('loadingStart'));
 updateLoadingElapsed();
 loadingElapsedTimer = setInterval(updateLoadingElapsed, 100);
+// 방문자 수 기능이 느리거나 실패해도 앱 전체를 막지 않는다.
+loadingTimeoutId = setTimeout(()=>releaseDataLoadingFallback('5초 제한 시간 초과'), 5000);
 
 function renderVisitStats(todayCount, totalCount){
   document.getElementById('stat-today').textContent = todayCount;
@@ -1023,7 +1034,11 @@ function startFirebaseApp(){
     visitReadReady = true;
     setLoadingState(50, t('loadingRead'));
     updateDataLoading();
-  }, (err)=>{ console.error('visits onSnapshot 오류:', err); });
+  }, (err)=>{
+    console.error('visits onSnapshot 오류:', err);
+    releaseDataLoadingFallback('방문자 수 읽기 오류');
+  });
+  // 방문자 수 증가는 화면 진입을 막지 않고 백그라운드에서 처리한다.
   recordVisit();
 }
 async function recordVisit(){
@@ -1044,7 +1059,10 @@ async function recordVisit(){
     visitWriteReady = true;
     setLoadingState(90, t('loadingWrite'));
     updateDataLoading();
-  } catch(e){ console.error('방문자 카운트 오류:', e); }
+  } catch(e){
+    console.error('방문자 카운트 오류:', e);
+    releaseDataLoadingFallback('방문자 수 쓰기 오류');
+  }
 }
 if(window.db){ startFirebaseApp(); }
 else{ window.addEventListener('firebase-ready', startFirebaseApp); }
@@ -1433,6 +1451,7 @@ function handleVideoLoad(){
     sendVideoCommand('playVideo');
   }
 }
+document.getElementById('celebrate-video').addEventListener('load', handleVideoLoad);
 function toggleVideoSound(){
   if(_videoSoundOn){
     sendVideoCommand('mute');
