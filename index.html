@@ -517,7 +517,7 @@
       </div>
     </div>
     <div class="tiles">
-      <div class="tile" onclick="showView('view-record')">
+      <div class="tile" onclick="openRecordView()">
         <div class="mark">🏃</div>
         <div class="txt"><b data-i18n="tileRecordTitle">거리 기록하기</b><span data-i18n="tileRecordDesc">오늘 뛴 거리를 남겨요</span></div>
         <div class="go">›</div>
@@ -656,6 +656,12 @@
     <button class="btn" onclick="saveInviteList()" data-i18n="btnSaveInvite">명단 저장</button>
     <div class="stamp-line" data-i18n="adminOnlyLine">— 관리자 전용 화면 —</div>
     <button class="btn seal" onclick="exportCSV()" data-i18n="btnExportCSV">전체 기록 CSV로 내려받기</button>
+    <div class="stamp-line" data-i18n="labelRecordingControl">— 추가 기록 설정 —</div>
+    <div class="field">
+      <label data-i18n="labelRecordingStatus">추가 기록 상태</label>
+      <div id="recording-status" class="hint" style="margin:0 0 10px;">현재: 기록 추가 차단</div>
+      <button class="btn ghost" id="recording-toggle-btn" onclick="toggleRecording()" type="button">기록 추가 ON</button>
+    </div>
     <div class="field" style="margin-top:20px;"><label data-i18n="labelBgUrl">배경화면 URL</label><input id="bg-url" placeholder="https://..."></div>
     <button class="btn ghost" onclick="saveBg()" data-i18n="btnApplyBg">배경화면 적용</button>
     <div class="stamp-line" data-i18n="labelEntryManager">— 전체 기록 관리 —</div>
@@ -759,6 +765,11 @@ const I18N = {
     inviteHint:"이름,별명 형식으로 한 줄에 한 명씩 입력하세요. 기록 저장 시 이 명단과 자동 매칭됩니다.",
     btnSaveInvite:"명단 저장", adminOnlyLine:"— 관리자 전용 화면 —", btnExportCSV:"전체 기록 CSV로 내려받기",
     labelBgUrl:"배경화면 URL", btnApplyBg:"배경화면 적용",
+    labelRecordingControl:"— 추가 기록 설정 —", labelRecordingStatus:"추가 기록 상태",
+    recordStatusOpen:"현재: 기록 추가 허용", recordStatusClosed:"현재: 기록 추가 차단",
+    btnRecordingOpen:"기록 추가 ON", btnRecordingClose:"기록 추가 OFF",
+    toastRecordingClosed:"현재 추가 기록이 마감되었습니다.", toastRecordingUpdated:"추가 기록을 {state}했습니다.",
+    recordingStateOpen:"허용", recordingStateClosed:"차단",
     noticeTitle:"시작하기 전에", noticeTagPrivacy:"개인정보 고지",
     noticePrivacyText:"순위표에는 입력하신 이름·별명이 그대로 공개됩니다. 미성년자·가족·지인은 별명만으로도 참여하실 수 있어요.",
     noticeTagSafety:"안전 안내", noticeSafetyText:"하노이의 8월은 덥고 습합니다. 이른 아침이나 저녁, 안전한 곳에서, 무리하지 않는 선에서 달려주세요.",
@@ -814,6 +825,11 @@ const I18N = {
     inviteHint:"One person per line, as Name,Nickname. New records are auto-matched against this list.",
     btnSaveInvite:"Save List", adminOnlyLine:"— Admin Only —", btnExportCSV:"Download All Records as CSV",
     labelBgUrl:"Background Image URL", btnApplyBg:"Apply Background",
+    labelRecordingControl:"— New-record setting —", labelRecordingStatus:"New-record status",
+    recordStatusOpen:"Current: new records allowed", recordStatusClosed:"Current: new records closed",
+    btnRecordingOpen:"Turn new records ON", btnRecordingClose:"Turn new records OFF",
+    toastRecordingClosed:"New records are currently closed.", toastRecordingUpdated:"New records are now {state}.",
+    recordingStateOpen:"allowed", recordingStateClosed:"closed",
     noticeTitle:"Before You Start", noticeTagPrivacy:"Privacy Notice",
     noticePrivacyText:"Your name and nickname will be shown publicly on the rankings. Minors, family, and friends may join using a nickname only.",
     noticeTagSafety:"Safety Notice", noticeSafetyText:"Hanoi in August is hot and humid. Please run early morning or evening, in safe areas, and don't overdo it.",
@@ -869,6 +885,11 @@ const I18N = {
     inviteHint:"Mỗi dòng một người, theo định dạng Tên,Biệt danh. Kỷ lục mới sẽ tự động đối chiếu với danh sách này.",
     btnSaveInvite:"Lưu danh sách", adminOnlyLine:"— Chỉ dành cho quản trị viên —", btnExportCSV:"Tải toàn bộ kỷ lục dạng CSV",
     labelBgUrl:"URL ảnh nền", btnApplyBg:"Áp dụng ảnh nền",
+    labelRecordingControl:"— Cài đặt ghi mới —", labelRecordingStatus:"Trạng thái ghi mới",
+    recordStatusOpen:"Hiện tại: cho phép ghi mới", recordStatusClosed:"Hiện tại: đã đóng ghi mới",
+    btnRecordingOpen:"BẬT ghi mới", btnRecordingClose:"TẮT ghi mới",
+    toastRecordingClosed:"Hiện tại đã đóng ghi mới.", toastRecordingUpdated:"Ghi mới hiện đã {state}.",
+    recordingStateOpen:"được cho phép", recordingStateClosed:"đóng",
     noticeTitle:"Trước khi bắt đầu", noticeTagPrivacy:"Thông báo quyền riêng tư",
     noticePrivacyText:"Tên và biệt danh của bạn sẽ được hiển thị công khai trên bảng xếp hạng. Trẻ vị thành niên, gia đình, bạn bè có thể chỉ dùng biệt danh.",
     noticeTagSafety:"Lưu ý an toàn", noticeSafetyText:"Tháng 8 ở Hà Nội nóng và ẩm. Hãy chạy vào sáng sớm hoặc chiều tối, ở nơi an toàn, và đừng gắng sức quá.",
@@ -910,14 +931,16 @@ function applyLang(lang){
     b.classList.toggle('active', b.getAttribute('data-lang-btn')===lang);
   });
   if(document.getElementById('view-rank').classList.contains('active')) renderRank();
+  updateRecordingControls();
 }
 
 /* ---------- Firebase-backed data layer ---------- */
 let db, auth, fb;
 let entries = [];
 let inviteList = [];
-let cfg = { bg:'' };
+let cfg = { bg:'', recordingOpen:false };
 let isAdmin = false;
+let recordingOpen = false;
 
 function getHanoiDateString(){
   const now = new Date();
@@ -997,18 +1020,23 @@ function startFirebaseApp(){
     if(ta) ta.value = inviteList.map(i=>`${i.name},${i.nickname}`).join('\n');
   }).catch(err=>console.error('inviteList 읽기 오류(관리자 로그인 전에는 정상):', err));
 
-  // 3) 배경화면 설정 (읽기는 공개)
-  fb.getDoc(fb.doc(db,'config','site')).then(snap=>{
-    if(snap.exists()){
-      cfg = snap.data();
-      if(cfg.bg) document.body.style.setProperty('--bg-image', `url(${cfg.bg})`);
-    }
-  }).catch(err=>console.error('config 읽기 오류:', err));
+  // 3) 사이트 설정 (읽기는 공개) — 배경화면과 추가 기록 허용 여부를 실시간 반영
+  fb.onSnapshot(fb.doc(db,'config','site'), (snap)=>{
+    cfg = snap.exists() ? snap.data() : { bg:'', recordingOpen:false };
+    recordingOpen = cfg.recordingOpen === true; // 설정이 없으면 기본적으로 추가 기록 차단
+    document.body.style.setProperty('--bg-image', cfg.bg ? `url(${cfg.bg})` : 'none');
+    updateRecordingControls();
+  }, (err)=>{
+    console.error('config 읽기 오류:', err);
+    recordingOpen = false;
+    updateRecordingControls();
+  });
 
   // 4) 관리자 로그인 상태 감지 — 새로고침해도 로그인 유지됨
   fb.onAuthStateChanged(auth, (user)=>{
     isAdmin = !!user;
     document.getElementById('tile-invite').style.display = isAdmin ? 'flex' : 'none';
+    updateRecordingControls();
     if(isAdmin){
       fb.getDoc(fb.doc(db,'meta','inviteList')).then(snap=>{
         inviteList = snap.exists() ? (snap.data().list || []) : [];
@@ -1112,6 +1140,32 @@ function openExternal(kind){
 function closeNotice(){ document.getElementById('notice-overlay').classList.remove('show'); }
 
 /* ---------- Admin ---------- */
+function openRecordView(){
+  if(!recordingOpen){
+    showToast(t('toastRecordingClosed'));
+    return;
+  }
+  showView('view-record');
+}
+function updateRecordingControls(){
+  const status = document.getElementById('recording-status');
+  const btn = document.getElementById('recording-toggle-btn');
+  if(status) status.textContent = recordingOpen ? t('recordStatusOpen') : t('recordStatusClosed');
+  if(btn) btn.textContent = recordingOpen ? t('btnRecordingClose') : t('btnRecordingOpen');
+}
+async function toggleRecording(){
+  if(!isAdmin) return;
+  const next = !recordingOpen;
+  try{
+    await fb.setDoc(fb.doc(db,'config','site'), { recordingOpen:next }, { merge:true });
+    recordingOpen = next;
+    cfg.recordingOpen = next;
+    updateRecordingControls();
+    showToast(t('toastRecordingUpdated',{state:next ? t('recordingStateOpen') : t('recordingStateClosed')}));
+  }catch(e){
+    console.error(e);
+  }
+}
 function openAdmin(){
   if(isAdmin){ showView('view-invite'); return; }
   document.getElementById('admin-overlay').classList.add('show');
@@ -1182,6 +1236,10 @@ async function deleteEntry(id){
 
 /* ---------- Record submit ---------- */
 async function submitEntry(){
+  if(!recordingOpen){
+    showToast(t('toastRecordingClosed'));
+    return;
+  }
   const name=document.getElementById('f-name').value.trim();
   const nickname=document.getElementById('f-nick').value.trim();
   const country=document.getElementById('f-country').value.trim();
