@@ -369,6 +369,16 @@
     box-shadow:0 0 0 3px var(--paper);
   }
   .country-breakdown{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .rank-loading{
+    display:none; flex:1; min-height:260px; align-items:center; justify-content:center;
+    flex-direction:column; gap:12px; color:var(--ink-soft); font-size:14px; font-weight:700;
+  }
+  .rank-loading.show{ display:flex; }
+  .rank-loading-spinner{
+    width:34px; height:34px; border:4px solid var(--paper-deep); border-top-color:var(--seal);
+    border-radius:50%; animation:rankLoadingSpin .8s linear infinite;
+  }
+  @keyframes rankLoadingSpin{ to{ transform:rotate(360deg); } }
   .country-chip{
     display:flex; align-items:center; gap:6px;
     background:var(--card); border:1px solid var(--line); border-radius:999px;
@@ -579,6 +589,11 @@
       <button class="backbtn" onclick="goHome()">←</button>
       <h2 class="serif" data-i18n="tileRankTitle2">순위 · 815km</h2>
     </div>
+    <div class="rank-loading" id="rank-loading" role="status" aria-live="polite">
+      <div class="rank-loading-spinner" aria-hidden="true"></div>
+      <p data-i18n="dataLoading">데이터 로딩중입니다.</p>
+    </div>
+    <div id="rank-content">
 
     <div class="gauge-wrap">
       <div class="gauge-top"><b id="gauge-num">0.0 km</b><span data-i18n="gaugeGoal">목표 815km</span></div>
@@ -602,6 +617,7 @@
       <div class="rankcol"><h3 data-i18n="todayTitle">오늘(하노이 기준)의 주인공</h3><div class="rankcol-scroll" id="rank-today-list"></div></div>
     </div>
     <button class="btn ghost" onclick="goHome()" data-i18n="btnMainScreen">메인 화면으로 가기</button>
+    </div>
   </section>
 
   <!-- ============ MY CUMULATIVE DISTANCE (search) ============ -->
@@ -937,6 +953,7 @@ function applyLang(lang){
 /* ---------- Firebase-backed data layer ---------- */
 let db, auth, fb;
 let entries = [];
+let entriesLoaded = false;
 let inviteList = [];
 let cfg = { bg:'', recordingOpen:false };
 let isAdmin = false;
@@ -1008,10 +1025,17 @@ function startFirebaseApp(){
   const entriesQ = fb.query(fb.collection(db,'entries'), fb.orderBy('createdAt','desc'));
   fb.onSnapshot(entriesQ, (snap)=>{
     entries = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    entriesLoaded = true;
+    updateRankLoading();
     if(document.getElementById('view-rank').classList.contains('active')) renderRank();
     if(document.getElementById('view-invite').classList.contains('active')) renderEntryManager();
     checkCelebration();
-  }, (err)=>{ console.error('entries onSnapshot 오류:', err); });
+  }, (err)=>{
+    console.error('entries onSnapshot 오류:', err);
+    entriesLoaded = true;
+    updateRankLoading();
+    if(document.getElementById('view-rank').classList.contains('active')) renderRank();
+  });
 
   // 2) 초청자 명단 (관리자만 읽기/쓰기 — 보안규칙 참고)
   fb.getDoc(fb.doc(db,'meta','inviteList')).then(snap=>{
@@ -1099,7 +1123,10 @@ else{ window.addEventListener('firebase-ready', startFirebaseApp); }
 function showView(id, fromPopstate){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  if(id==='view-rank'){ renderRank(); }
+  if(id==='view-rank'){
+    updateRankLoading();
+    if(entriesLoaded) renderRank();
+  }
   if(id==='view-invite'){ renderEntryManager(); }
   if(!fromPopstate){
     if(id==='view-main'){
@@ -1309,6 +1336,14 @@ function rankRow(name,nick,val){
 }
 function emptyRow(msg){ return `<div class="search-empty">${msg||t('emptyGeneric')}</div>`; }
 
+function updateRankLoading(){
+  const loader = document.getElementById('rank-loading');
+  const content = document.getElementById('rank-content');
+  const rankActive = document.getElementById('view-rank').classList.contains('active');
+  const isLoading = rankActive && !entriesLoaded;
+  if(loader) loader.classList.toggle('show', isLoading);
+  if(content) content.hidden = isLoading;
+}
 function rankTab(which, btn){
   document.querySelectorAll('.subtabs button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
